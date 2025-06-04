@@ -14,7 +14,6 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -45,6 +44,21 @@ namespace SteamLibrary
         Staging = 2097152,
         Committing = 4194304,
         UpdateStopping = 8388608
+    }
+    internal class AppInfo
+    {
+        public static class Constants
+        {
+            public static readonly uint magic27 = 0x07564427;
+            public static readonly uint magic28 = 0x07564428;
+            public static readonly uint magic29 = 0x07564429;
+            public static readonly HashSet<uint> magics = new HashSet<uint>
+            {
+                magic27,
+                magic28,
+                magic29
+            };
+        }
     }
 
     [LoadPlugin]
@@ -82,12 +96,12 @@ namespace SteamLibrary
                 {
                     try
                     {
-                        Process.Start(@"steam://open/friends");
+                        _ = Process.Start(@"steam://open/friends");
                     }
                     catch (Exception e)
                     {
                         logger.Error(e, "Failed to open Steam friends.");
-                        PlayniteApi.Dialogs.ShowErrorMessage(e.Message, "");
+                        _ = PlayniteApi.Dialogs.ShowErrorMessage(e.Message, "");
                     }
                 },
                 Visible = SettingsViewModel.Settings.ShowFriendsButton
@@ -106,13 +120,13 @@ namespace SteamLibrary
 
         internal static GameMetadata GetInstalledGameFromFile(string path)
         {
-            var kv = new KeyValue();
-            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            KeyValue kv = new KeyValue();
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                kv.ReadAsText(fs);
+                _ = kv.ReadAsText(fs);
             }
 
-            if (!kv["StateFlags"].Value.IsNullOrEmpty() && Enum.TryParse<AppStateFlags>(kv["StateFlags"].Value, out var appState))
+            if (!kv["StateFlags"].Value.IsNullOrEmpty() && Enum.TryParse(kv["StateFlags"].Value, out AppStateFlags appState))
             {
                 if (!appState.HasFlag(AppStateFlags.FullyInstalled))
                 {
@@ -124,7 +138,7 @@ namespace SteamLibrary
                 return null;
             }
 
-            var name = string.Empty;
+            string name = string.Empty;
             if (string.IsNullOrEmpty(kv["name"].Value))
             {
                 if (kv["UserConfig"]["name"].Value != null)
@@ -137,18 +151,18 @@ namespace SteamLibrary
                 name = StringExtensions.NormalizeGameName(kv["name"].Value);
             }
 
-            var gameId = new GameID(kv["appID"].AsUnsignedInteger());
-            var installDir = Path.Combine((new FileInfo(path)).Directory.FullName, "common", kv["installDir"].Value);
+            GameID gameId = new GameID(kv["appID"].AsUnsignedInteger());
+            string installDir = Path.Combine(new FileInfo(path).Directory.FullName, "common", kv["installDir"].Value);
             if (!Directory.Exists(installDir))
             {
-                installDir = Path.Combine((new FileInfo(path)).Directory.FullName, "music", kv["installDir"].Value);
+                installDir = Path.Combine(new FileInfo(path).Directory.FullName, "music", kv["installDir"].Value);
                 if (!Directory.Exists(installDir))
                 {
                     installDir = string.Empty;
                 }
             }
 
-            var game = new GameMetadata()
+            GameMetadata game = new GameMetadata()
             {
                 Source = new MetadataNameProperty("Steam"),
                 GameId = gameId.ToString(),
@@ -163,9 +177,9 @@ namespace SteamLibrary
 
         internal static List<GameMetadata> GetInstalledGamesFromFolder(string path)
         {
-            var games = new List<GameMetadata>();
+            List<GameMetadata> games = new List<GameMetadata>();
 
-            foreach (var file in Directory.GetFiles(path, @"appmanifest*"))
+            foreach (string file in Directory.GetFiles(path, @"appmanifest*"))
             {
                 if (file.EndsWith("tmp", StringComparison.OrdinalIgnoreCase))
                 {
@@ -174,7 +188,7 @@ namespace SteamLibrary
 
                 try
                 {
-                    var game = GetInstalledGameFromFile(Path.Combine(path, file));
+                    GameMetadata game = GetInstalledGameFromFile(Path.Combine(path, file));
                     if (game == null)
                     {
                         continue;
@@ -200,14 +214,14 @@ namespace SteamLibrary
 
         internal static List<GameMetadata> GetInstalledGoldSrcModsFromFolder(string path)
         {
-            var games = new List<GameMetadata>();
-            var dirInfo = new DirectoryInfo(path);
+            List<GameMetadata> games = new List<GameMetadata>();
+            DirectoryInfo dirInfo = new DirectoryInfo(path);
 
-            foreach (var folder in dirInfo.GetDirectories().Where(a => !firstPartyModPrefixes.Any(prefix => a.Name.StartsWith(prefix))).Select(a => a.FullName))
+            foreach (string folder in dirInfo.GetDirectories().Where(a => !firstPartyModPrefixes.Any(prefix => a.Name.StartsWith(prefix))).Select(a => a.FullName))
             {
                 try
                 {
-                    var game = GetInstalledModFromFolder(folder, ModInfo.ModType.HL);
+                    GameMetadata game = GetInstalledModFromFolder(folder, ModInfo.ModType.HL);
                     if (game != null)
                     {
                         games.Add(game);
@@ -225,13 +239,13 @@ namespace SteamLibrary
 
         internal static List<GameMetadata> GetInstalledSourceModsFromFolder(string path)
         {
-            var games = new List<GameMetadata>();
+            List<GameMetadata> games = new List<GameMetadata>();
 
-            foreach (var folder in Directory.GetDirectories(path))
+            foreach (string folder in Directory.GetDirectories(path))
             {
                 try
                 {
-                    var game = GetInstalledModFromFolder(folder, ModInfo.ModType.HL2);
+                    GameMetadata game = GetInstalledModFromFolder(folder, ModInfo.ModType.HL2);
                     if (game != null)
                     {
                         games.Add(game);
@@ -249,13 +263,13 @@ namespace SteamLibrary
 
         internal static GameMetadata GetInstalledModFromFolder(string path, ModInfo.ModType modType)
         {
-            var modInfo = ModInfo.GetFromFolder(path, modType);
+            ModInfo modInfo = ModInfo.GetFromFolder(path, modType);
             if (modInfo == null)
             {
                 return null;
             }
 
-            var game = new GameMetadata()
+            GameMetadata game = new GameMetadata()
             {
                 Source = new MetadataNameProperty("Steam"),
                 GameId = modInfo.GameId.ToString(),
@@ -278,15 +292,15 @@ namespace SteamLibrary
 
         internal static Dictionary<string, GameMetadata> GetInstalledGames(bool includeMods = true)
         {
-            var games = new Dictionary<string, GameMetadata>();
+            Dictionary<string, GameMetadata> games = new Dictionary<string, GameMetadata>();
             if (!Steam.IsInstalled)
             {
                 throw new Exception("Steam installation not found.");
             }
 
-            foreach (var folder in GetLibraryFolders())
+            foreach (string folder in GetLibraryFolders())
             {
-                var libFolder = Path.Combine(folder, "steamapps");
+                string libFolder = Path.Combine(folder, "steamapps");
                 if (Directory.Exists(libFolder))
                 {
                     GetInstalledGamesFromFolder(libFolder).ForEach(a =>
@@ -314,7 +328,7 @@ namespace SteamLibrary
                 try
                 {
                     // In most cases, this will be inside the folder where Half-Life is installed.
-                    var modInstallPath = Steam.ModInstallPath;
+                    string modInstallPath = Steam.ModInstallPath;
                     if (!string.IsNullOrEmpty(modInstallPath) && Directory.Exists(modInstallPath))
                     {
                         GetInstalledGoldSrcModsFromFolder(Steam.ModInstallPath).ForEach(a =>
@@ -327,7 +341,7 @@ namespace SteamLibrary
                     }
 
                     // In most cases, this will be inside the library folder where Steam is installed.
-                    var sourceModInstallPath = Steam.SourceModInstallPath;
+                    string sourceModInstallPath = Steam.SourceModInstallPath;
                     if (!string.IsNullOrEmpty(sourceModInstallPath) && Directory.Exists(sourceModInstallPath))
                     {
                         GetInstalledSourceModsFromFolder(Steam.SourceModInstallPath).ForEach(a =>
@@ -350,8 +364,8 @@ namespace SteamLibrary
 
         internal static List<string> GetLibraryFolders(KeyValue foldersData)
         {
-            var dbs = new List<string>();
-            foreach (var child in foldersData.Children)
+            List<string> dbs = new List<string>();
+            foreach (KeyValue child in foldersData.Children)
             {
                 if (int.TryParse(child.Name, out int _))
                 {
@@ -361,7 +375,7 @@ namespace SteamLibrary
                     }
                     else if (child.Children.HasItems())
                     {
-                        var path = child.Children.FirstOrDefault(a => a.Name?.Equals("path", StringComparison.OrdinalIgnoreCase) == true);
+                        KeyValue path = child.Children.FirstOrDefault(a => a.Name?.Equals("path", StringComparison.OrdinalIgnoreCase) == true);
                         if (!path.Value.IsNullOrEmpty())
                         {
                             dbs.Add(path.Value);
@@ -375,8 +389,8 @@ namespace SteamLibrary
 
         internal static HashSet<string> GetLibraryFolders()
         {
-            var dbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Steam.InstallationPath };
-            var configPath = Path.Combine(Steam.InstallationPath, "steamapps", "libraryfolders.vdf");
+            HashSet<string> dbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Steam.InstallationPath };
+            string configPath = Path.Combine(Steam.InstallationPath, "steamapps", "libraryfolders.vdf");
             if (!File.Exists(configPath))
             {
                 return dbs;
@@ -384,15 +398,15 @@ namespace SteamLibrary
 
             try
             {
-                using (var fs = new FileStream(configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (FileStream fs = new FileStream(configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    var kv = new KeyValue();
-                    kv.ReadAsText(fs);
-                    foreach (var dir in GetLibraryFolders(kv))
+                    KeyValue kv = new KeyValue();
+                    _ = kv.ReadAsText(fs);
+                    foreach (string dir in GetLibraryFolders(kv))
                     {
                         if (Directory.Exists(dir))
                         {
-                            dbs.Add(dir);
+                            _ = dbs.Add(dir);
                         }
                         else
                         {
@@ -411,15 +425,15 @@ namespace SteamLibrary
 
         internal List<LocalSteamUser> GetSteamUsers()
         {
-            var users = new List<LocalSteamUser>();
+            List<LocalSteamUser> users = new List<LocalSteamUser>();
             if (File.Exists(Steam.LoginUsersPath))
             {
-                var config = new KeyValue();
+                KeyValue config = new KeyValue();
 
                 try
                 {
-                    config.ReadFileAsText(Steam.LoginUsersPath);
-                    foreach (var user in config.Children)
+                    _ = config.ReadFileAsText(Steam.LoginUsersPath);
+                    foreach (KeyValue user in config.Children)
                     {
                         users.Add(new LocalSteamUser()
                         {
@@ -446,21 +460,24 @@ namespace SteamLibrary
                 throw new Exception(PlayniteApi.Resources.GetString(LOC.SteamNotLoggedInError));
             }
 
-            var userId = ulong.Parse(settings.UserId);
+            ulong userId = ulong.Parse(settings.UserId);
             if (settings.IsPrivateAccount)
             {
                 return GetLibraryGames(userId, GetPrivateOwnedGames(userId, settings.RutnimeApiKey, settings.IncludeFreeSubGames)?.response?.games);
             }
             else
             {
-                var profile = GetLibraryGamesViaProfilePage(settings);
-                if (profile.rgGames.HasItems() != true)
-                    return new List<GameMetadata>();
-
-                var games = new List<GameMetadata>();
-                foreach (var profGame in profile.rgGames)
+                ProfilePageOwnedGames profile = GetLibraryGamesViaProfilePage(settings);
+                if (!profile.rgGames.HasItems())
                 {
-                    var game = new GameMetadata()
+                    return new List<GameMetadata>();
+                }
+
+                List<GameMetadata> games = new List<GameMetadata>();
+                HashSet<int> gamesIds = new HashSet<int>(profile.rgGames.Select(a => a.appid));
+                foreach (RgGame profGame in profile.rgGames)
+                {
+                    GameMetadata game = new GameMetadata()
                     {
                         GameId = profGame.appid.ToString(),
                         Name = profGame.name,
@@ -469,13 +486,22 @@ namespace SteamLibrary
                         Source = new MetadataNameProperty("Steam")
                     };
 
-                    var lastDate = DateTimeOffset.FromUnixTimeSeconds(profGame.rtime_last_played).LocalDateTime;
+                    DateTime lastDate = DateTimeOffset.FromUnixTimeSeconds(profGame.rtime_last_played).LocalDateTime;
                     if (lastDate.Year > 1970)
                     {
                         game.LastActivity = lastDate;
                     }
 
                     games.Add(game);
+                }
+                foreach (GameMetadata family in LoadAppInfo())
+                {
+                    if (family.GameId.IsNullOrEmpty() || gamesIds.Contains(int.Parse(family.GameId)))
+                    {
+                        continue;
+                    }
+
+                    games.Add(family);
                 }
 
                 return games;
@@ -485,10 +511,12 @@ namespace SteamLibrary
         internal ProfilePageOwnedGames GetLibraryGamesViaProfilePage(SteamLibrarySettings settings)
         {
             if (settings.UserId.IsNullOrWhiteSpace())
+            {
                 throw new Exception("Steam user not authenticated.");
+            }
 
             JavaScriptEvaluationResult jsRes = null;
-            using (var view = PlayniteApi.WebViews.CreateOffscreenView())
+            using (IWebView view = PlayniteApi.WebViews.CreateOffscreenView())
             {
                 view.NavigateAndWait($"https://steamcommunity.com/profiles/{settings.UserId}/games");
                 jsRes = Task.Run(async () =>
@@ -502,8 +530,10 @@ namespace SteamLibrary
                 throw new Exception("Failed to fetch Steam games from user profile.");
             }
 
-            if (Serialization.TryFromJson<ProfilePageOwnedGames>(jsRes.Result as string, out var profileData, out var error))
+            if (Serialization.TryFromJson(jsRes.Result as string, out ProfilePageOwnedGames profileData, out Exception error))
+            {
                 return profileData;
+            }
 
             logger.Error(error, "Failed deserialize Steam profile page data.");
             logger.Debug(jsRes.Result as string);
@@ -512,15 +542,15 @@ namespace SteamLibrary
 
         internal GetOwnedGamesResult GetPrivateOwnedGames(ulong userId, string apiKey, bool freeSub)
         {
-            var libraryUrl = @"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={0}&include_appinfo=1&include_played_free_games=1&format=json&steamid={1}&skip_unvetted_apps=0";
+            string libraryUrl = @"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={0}&include_appinfo=1&include_played_free_games=1&format=json&steamid={1}&skip_unvetted_apps=0";
             if (freeSub)
             {
                 libraryUrl += "&include_free_sub=1";
             }
 
-            using (var webClient = new WebClient { Encoding = Encoding.UTF8 })
+            using (WebClient webClient = new WebClient { Encoding = Encoding.UTF8 })
             {
-                var stringLibrary = webClient.DownloadString(string.Format(libraryUrl, apiKey, userId));
+                string stringLibrary = webClient.DownloadString(string.Format(libraryUrl, apiKey, userId));
                 return Serialization.FromJson<GetOwnedGamesResult>(stringLibrary);
             }
         }
@@ -545,8 +575,8 @@ namespace SteamLibrary
                 Logger.Warn(exc, "Failed to import Steam last activity.");
             }
 
-            var games = new List<GameMetadata>();
-            foreach (var game in ownedGames)
+            List<GameMetadata> games = new List<GameMetadata>();
+            foreach (GetOwnedGamesResult.Game game in ownedGames)
             {
                 // Ignore games without name, like 243870
                 if (string.IsNullOrEmpty(game.name))
@@ -554,7 +584,7 @@ namespace SteamLibrary
                     continue;
                 }
 
-                var newGame = new GameMetadata()
+                GameMetadata newGame = new GameMetadata()
                 {
                     Source = new MetadataNameProperty("Steam"),
                     Name = game.name.RemoveTrademarks().Trim(),
@@ -567,7 +597,7 @@ namespace SteamLibrary
                     newGame.Playtime = (ulong)(game.playtime_forever * 60);
                 }
 
-                if (lastActivity != null && lastActivity.TryGetValue(newGame.GameId, out var gameLastActivity) && newGame.Playtime > 0)
+                if (lastActivity != null && lastActivity.TryGetValue(newGame.GameId, out DateTime gameLastActivity) && newGame.Playtime > 0)
                 {
                     newGame.LastActivity = gameLastActivity;
                 }
@@ -576,23 +606,155 @@ namespace SteamLibrary
             }
 
             return games;
-        }
 
-        public IDictionary<string, DateTime> GetGamesLastActivity(ulong steamId)
+        }
+        internal List<GameMetadata> LoadAppInfo()
         {
-            var id = new SteamID(steamId);
-            var result = new Dictionary<string, DateTime>();
-            var vdf = Path.Combine(Steam.InstallationPath, "userdata", id.AccountID.ToString(), "config", "localconfig.vdf");
+
+            string vdf = Path.Combine(Steam.InstallationPath, "appcache", "appinfo.vdf");
+            List<GameMetadata> result = new List<GameMetadata>();
             if (!FileSystem.FileExists(vdf))
             {
                 return result;
             }
 
-            var sharedconfig = new KeyValue();
-            sharedconfig.ReadFileAsText(vdf);
+            BinaryReader reader = new BinaryReader(File.Open(vdf, FileMode.Open));
+            uint magic = reader.ReadUInt32();
+            if (!AppInfo.Constants.magics.Contains(magic))
+            {
+                logger.Error($"Invalid appinfo.vdf magic number: {magic:X8}");
+                return result;
+            }
 
-            var apps = sharedconfig["Software"]["Valve"]["Steam"]["apps"];
-            foreach (var app in apps.Children)
+            _ = reader.ReadUInt32();
+            List<string> stringPool = new List<string>();
+            if (magic == AppInfo.Constants.magic29)
+            {
+                ulong stringTableOffset = reader.ReadUInt64();
+                long oldPos = reader.BaseStream.Position;
+                reader.BaseStream.Position = (long)stringTableOffset;
+                uint stringCount = reader.ReadUInt32();
+                for (uint i = 0; i < stringCount; i++)
+                {
+                    stringPool.Add(ReadNullTerminatedString(reader));
+                }
+                reader.BaseStream.Position = oldPos;
+            }
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
+            {
+                uint appid = reader.ReadUInt32();
+                if (appid == 0)
+                {
+                    // End of appinfo
+                    break;
+                }
+                uint size = reader.ReadUInt32();
+                _ = reader.BaseStream.Position + size;
+                Dictionary<string, object> app = new Dictionary<string, object>{
+                    {"infoState", reader.ReadUInt32() },
+                    {"lastUpdated", reader.ReadUInt32() },
+                    {"token", reader.ReadUInt64() },
+                    {"hash",reader.ReadBytes(20)},
+                    {"changeNumber",reader.ReadUInt32()}
+                };
+                if (magic == AppInfo.Constants.magic29 || magic == AppInfo.Constants.magic28)
+                {
+                    app.Add("binaryDataHash", reader.ReadBytes(20));
+                };
+                Dictionary<string, object> appInfo = AppInfoDescrialize(reader, stringPool, magic)["appinfo"] as Dictionary<string, object>;
+                if (!appInfo.ContainsKey("common"))
+                {
+                    continue;
+                }
+                Dictionary<string, object> common = appInfo["common"] as Dictionary<string, object>;
+                if ((common["type"] as string) != "Game")
+                {
+                    continue;
+                }
+                string name = common.ContainsKey("name_localized") && common["name_localized"] is Dictionary<string, object> localizedNames && localizedNames.ContainsKey("schinese")
+                    ? (string)localizedNames["schinese"]
+                    : common.ContainsKey("name") ? common["name"] as string : string.Empty;
+                GameMetadata game = new GameMetadata()
+                {
+                    Source = new MetadataNameProperty("Steam"),
+                    Name = name,
+                    GameId = appid.ToString(),
+                    Platforms = new HashSet<MetadataProperty> { new MetadataSpecProperty("pc_windows") }
+                };
+
+                result.Add(game);
+            }
+            return result;
+        }
+        internal Dictionary<string, object> AppInfoDescrialize(BinaryReader reader, List<string> stringPool, uint magic)
+        {
+            Dictionary<string, object> emtries = new Dictionary<string, object>();
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
+            {
+                byte btype = reader.ReadByte();
+                if (btype == 0x08)
+                {
+                    break;
+                }
+                Tuple<string, object> entry = ReadEntry(reader, stringPool, btype, magic);
+                emtries.Add(entry.Item1, entry.Item2);
+            }
+            return emtries;
+        }
+        internal Tuple<string, object> ReadEntry(BinaryReader reader, List<string> stringPool, uint type, uint magic)
+        {
+            string key;
+            if (magic == AppInfo.Constants.magic27 || magic == AppInfo.Constants.magic28)
+            {
+                key = ReadNullTerminatedString(reader);
+            }
+            else
+            {
+                uint index = reader.ReadUInt32();
+                key = stringPool[(int)index];
+            }
+            switch (type)
+            {
+                case 0x00:
+                    return new Tuple<string, object>(key, AppInfoDescrialize(reader, stringPool, magic));
+                case 0x01:
+                    return new Tuple<string, object>(key, ReadNullTerminatedString(reader));
+                case 0x02:
+                    return new Tuple<string, object>(key, reader.ReadUInt32());
+                default:
+                    throw new NotSupportedException($"Unsupported appinfo.vdf entry type: {type:X2} for key: {key}");
+            }
+        }
+        internal string ReadNullTerminatedString(BinaryReader reader)
+        {
+            List<byte> bufferArray = new List<byte>();
+            while (true)
+            {
+                byte c = reader.ReadByte();
+                if (c == 0)
+                {
+                    break;
+                }
+                bufferArray.Add(c);
+            }
+            return Encoding.UTF8.GetString(bufferArray.ToArray());
+        }
+
+        public IDictionary<string, DateTime> GetGamesLastActivity(ulong steamId)
+        {
+            SteamID id = new SteamID(steamId);
+            Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
+            string vdf = Path.Combine(Steam.InstallationPath, "userdata", id.AccountID.ToString(), "config", "localconfig.vdf");
+            if (!FileSystem.FileExists(vdf))
+            {
+                return result;
+            }
+
+            KeyValue sharedconfig = new KeyValue();
+            _ = sharedconfig.ReadFileAsText(vdf);
+
+            KeyValue apps = sharedconfig["Software"]["Valve"]["Steam"]["apps"];
+            foreach (KeyValue app in apps.Children)
             {
                 if (app.Children.Count == 0)
                 {
@@ -607,7 +769,7 @@ namespace SteamLibrary
                     string[] parts = app.Name.Split('_');
                     if (uint.TryParse(parts[0], out uint appId) && uint.TryParse(parts[1], out uint modId))
                     {
-                        var gid = new GameID()
+                        GameID gid = new GameID()
                         {
                             AppID = appId,
                             AppType = GameID.GameType.GameMod,
@@ -622,7 +784,7 @@ namespace SteamLibrary
                     }
                 }
 
-                var dt = DateTimeOffset.FromUnixTimeSeconds(app["LastPlayed"].AsLong()).LocalDateTime;
+                DateTime dt = DateTimeOffset.FromUnixTimeSeconds(app["LastPlayed"].AsLong()).LocalDateTime;
                 if (dt.Year > 1970)
                 {
                     result.Add(gameId, dt);
@@ -675,8 +837,8 @@ namespace SteamLibrary
 
         public override IEnumerable<GameMetadata> GetGames(LibraryGetGamesArgs args)
         {
-            var allGames = new List<GameMetadata>();
-            var installedGames = new Dictionary<string, GameMetadata>();
+            List<GameMetadata> allGames = new List<GameMetadata>();
+            Dictionary<string, GameMetadata> installedGames = new Dictionary<string, GameMetadata>();
             Exception importError = null;
 
             if (SettingsViewModel.Settings.ImportInstalledGames)
@@ -698,18 +860,18 @@ namespace SteamLibrary
             {
                 try
                 {
-                    var libraryGames = GetLibraryGames(SettingsViewModel.Settings);
+                    List<GameMetadata> libraryGames = GetLibraryGames(SettingsViewModel.Settings);
                     if (SettingsViewModel.Settings.AdditionalAccounts.HasItems())
                     {
-                        foreach (var account in SettingsViewModel.Settings.AdditionalAccounts)
+                        foreach (AdditionalSteamAcccount account in SettingsViewModel.Settings.AdditionalAccounts)
                         {
-                            if (ulong.TryParse(account.AccountId, out var id))
+                            if (ulong.TryParse(account.AccountId, out ulong id))
                             {
                                 try
                                 {
-                                    var accGames = GetPrivateOwnedGames(id, account.RutnimeApiKey, SettingsViewModel.Settings.IncludeFreeSubGames);
-                                    var parsedGames = GetLibraryGames(id, accGames.response.games, account.ImportPlayTime);
-                                    foreach (var accGame in parsedGames)
+                                    GetOwnedGamesResult accGames = GetPrivateOwnedGames(id, account.RutnimeApiKey, SettingsViewModel.Settings.IncludeFreeSubGames);
+                                    List<GameMetadata> parsedGames = GetLibraryGames(id, accGames.response.games, account.ImportPlayTime);
+                                    foreach (GameMetadata accGame in parsedGames)
                                     {
                                         if (!libraryGames.Any(a => a.GameId == accGame.GameId))
                                         {
@@ -734,7 +896,7 @@ namespace SteamLibrary
 
                     if (SettingsViewModel.Settings.IgnoreOtherInstalled && SettingsViewModel.Settings.AdditionalAccounts.HasItems())
                     {
-                        foreach (var installedGameId in installedGames.Keys.ToList())
+                        foreach (string installedGameId in installedGames.Keys.ToList())
                         {
                             if (new GameID(ulong.Parse(installedGameId)).IsMod)
                             {
@@ -743,8 +905,8 @@ namespace SteamLibrary
 
                             if (libraryGames.FirstOrDefault(a => a.GameId == installedGameId) == null)
                             {
-                                allGames.Remove(installedGames[installedGameId]);
-                                installedGames.Remove(installedGameId);
+                                _ = allGames.Remove(installedGames[installedGameId]);
+                                _ = installedGames.Remove(installedGameId);
                             }
                         }
                     }
@@ -754,9 +916,9 @@ namespace SteamLibrary
                         libraryGames = libraryGames.Where(lg => installedGames.ContainsKey(lg.GameId)).ToList();
                     }
 
-                    foreach (var game in libraryGames)
+                    foreach (GameMetadata game in libraryGames)
                     {
-                        if (installedGames.TryGetValue(game.GameId, out var installed))
+                        if (installedGames.TryGetValue(game.GameId, out GameMetadata installed))
                         {
                             installed.Playtime = game.Playtime;
                             installed.LastActivity = game.LastActivity;
@@ -795,5 +957,6 @@ namespace SteamLibrary
         {
             yield return TopPanelFriendsButton;
         }
+
     }
 }
